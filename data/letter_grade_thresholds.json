@@ -1,0 +1,46 @@
+{
+  "version": "1.0",
+  "description": "Letter grade threshold configuration",
+  "grades": {
+    "A": {
+      "min_score": 80,
+      "max_score": 100,
+      "risk_level": "Low Risk",
+      "description": "Excellent - Approve with best terms",
+      "color": "green",
+      "auto_approve": true
+    },
+    "B": {
+      "min_score": 65,
+      "max_score": 79,
+      "risk_level": "Moderate Risk",
+      "description": "Good - Approve with standard terms",
+      "color": "lightgreen",
+      "auto_approve": true
+    },
+    "C": {
+      "min_score": 50,
+      "max_score": 64,
+      "risk_level": "Standard Risk",
+      "description": "Average - Manual review recommended",
+      "color": "yellow",
+      "auto_approve": false
+    },
+    "D": {
+      "min_score": 35,
+      "max_score": 49,
+      "risk_level": "High Risk",
+      "description": "Below Average - Additional documentation required",
+      "color": "orange",
+      "auto_approve": false
+    },
+    "F": {
+      "min_score": 0,
+      "max_score": 34,
+      "risk_level": "Very High Risk",
+      "description": "Poor - Decline recommended",
+      "color": "red",
+      "auto_approve": false
+    }
+  }
+}

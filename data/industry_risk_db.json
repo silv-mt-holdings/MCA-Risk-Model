@@ -1,0 +1,63 @@
+{
+  "version": "1.0",
+  "description": "Industry risk tier database",
+  "tiers": {
+    "1": {
+      "name": "Preferred",
+      "score_range": [90, 100],
+      "description": "Low risk, stable industries"
+    },
+    "2": {
+      "name": "Standard",
+      "score_range": [70, 89],
+      "description": "Average risk industries"
+    },
+    "3": {
+      "name": "Non-Preferred",
+      "score_range": [50, 69],
+      "description": "Above average risk"
+    },
+    "4": {
+      "name": "High Risk",
+      "score_range": [25, 49],
+      "description": "High risk industries"
+    },
+    "5": {
+      "name": "Prohibited",
+      "score_range": [0, 0],
+      "description": "Do not fund"
+    }
+  },
+  "industries": {
+    "medical": {"tier": 1, "score": 100, "sic": "8011"},
+    "dental": {"tier": 1, "score": 100, "sic": "8021"},
+    "veterinary": {"tier": 1, "score": 98, "sic": "0742"},
+    "accounting": {"tier": 1, "score": 95, "sic": "8721"},
+    "legal": {"tier": 1, "score": 95, "sic": "8111"},
+    "pharmacy": {"tier": 1, "score": 92, "sic": "5912"},
+
+    "restaurant": {"tier": 2, "score": 75, "sic": "5812"},
+    "retail": {"tier": 2, "score": 75, "sic": "5999"},
+    "construction": {"tier": 2, "score": 70, "sic": "1520"},
+    "trucking": {"tier": 2, "score": 70, "sic": "4213"},
+    "auto_repair": {"tier": 2, "score": 75, "sic": "7538"},
+    "landscaping": {"tier": 2, "score": 72, "sic": "0781"},
+
+    "bar": {"tier": 3, "score": 50, "sic": "5813"},
+    "nightclub": {"tier": 3, "score": 45, "sic": "5813"},
+    "gas_station": {"tier": 3, "score": 50, "sic": "5541"},
+    "salon": {"tier": 3, "score": 55, "sic": "7231"},
+    "dry_cleaner": {"tier": 3, "score": 52, "sic": "7216"},
+
+    "firearms": {"tier": 4, "score": 25, "sic": "5941"},
+    "tobacco": {"tier": 4, "score": 25, "sic": "5993"},
+    "pawn": {"tier": 4, "score": 30, "sic": "5932"},
+    "check_cashing": {"tier": 4, "score": 28, "sic": "6099"},
+
+    "gambling": {"tier": 5, "score": 0, "prohibited": true},
+    "marijuana": {"tier": 5, "score": 0, "prohibited": true},
+    "cannabis": {"tier": 5, "score": 0, "prohibited": true},
+    "adult": {"tier": 5, "score": 0, "prohibited": true},
+    "cryptocurrency": {"tier": 5, "score": 0, "prohibited": true}
+  }
+}
