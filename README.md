@@ -1,207 +1,380 @@
-# MCA Risk Scoring Model
+# MCA-Risk-Model
 
-Modular risk scoring system for Merchant Cash Advance (MCA) underwriting.
+**Clean, modular MCA (Merchant Cash Advance) risk scoring and underwriting library**
 
-## Architecture
+A production-ready Python library for MCA underwriting with bank statement parsing, cash flow analysis, and comprehensive risk scoring. Built with a layered architecture separating parsing, analytics, and scoring concerns.
 
-This system follows a **3-layer pipeline** architecture:
+## Features
 
-```
-+-------------------------------------------------------------------------+
-|                         MCA RISK MODEL PIPELINE                         |
-+-------------------------------------------------------------------------+
+### 🔍 Parsing Layer
+- **Bank Statement Parser**: Extract transactions, balances, and metrics from bank statements
+- **MCA Detection**: Identify existing MCA positions from 50+ lenders
+- **Revenue Classification**: Distinguish true revenue from transfers, loans, and other non-operational deposits
+- **Wire Transfer Analysis**: Classify and validate wire transfers
+- **Treasury Payment Validation**: Identify legitimate government payments
 
-  +--------------+      +--------------+      +--------------+
-  |   PARSING    | ---> |  ANALYTICS   | ---> |   SCORING    |
-  |              |      |              |      |              |
-  | - PDF Extract|      | - Cash Flow  |      | - Composite  |
-  | - Bank Parse |      | - Deposits   |      | - Industry   |
-  | - Templates  |      | - NSF/OD     |      | - Letter     |
-  |              |      | - Balances   |      | - Credit     |
-  +--------------+      +--------------+      +--------------+
-        |                      |                     |
-        v                      v                     v
-   Transactions           Metrics/KPIs          Risk Score
-   (structured)           (calculated)          (A+ to F)
-```
+### 📊 Analytics Layer
+- **Cash Flow Analyzer**: Trailing averages (3/6/12 month), trend analysis, volatility metrics
+- **Deposit Categorizer**: ACH, wire, cash, card processing classification
+- **NSF Analyzer**: NSF count, overdraft detection, negative day analysis
+- **Balance Tracker**: Average daily balance (ADB), balance trends
+- **MCA Position Detector**: Identify and track existing MCA obligations
 
-## Layer Descriptions
-
-### 1. Parsing Layer (`parsing/`)
-Extracts raw data from bank statement PDFs and converts to structured transactions.
-
-- **bank_statement_parser.py** - Core parsing logic for bank statements
-- **pdf_extractor.py** - PDF text extraction and table detection
-- **statement_templates/** - Bank-specific parsing templates
-
-### 2. Analytics Layer (`analytics/`)
-Transforms raw transactions into underwriting metrics and KPIs.
-
-- **cashflow_analyzer.py** - Trailing averages, trends, volatility
-- **deposit_categorizer.py** - Revenue classification (true revenue vs transfers)
-- **nsf_analyzer.py** - NSF/overdraft detection and scoring
-- **balance_tracker.py** - Average daily balance, low balance days
-
-### 3. Scoring Layer (`scoring/`)
-Combines metrics into a composite risk score with letter grade output.
-
-- **mca_scorecard.py** - Main scoring orchestrator
-- **credit_scoring.py** - FICO bucket scoring
-- **industry_scorer.py** - Industry risk tier scoring
-- **letter_grader.py** - Score-to-letter-grade conversion
-- **composite_scorer.py** - Weighted composite score calculation
+### 🎯 Scoring Layer
+- **MCA Scorecard**: 100-point composite risk score with 11 weighted components
+- **Letter Grader**: 13-grade system (A+ through F) with pricing and term recommendations
+- **Industry Scorer**: 5-tier industry risk segmentation (60+ industries)
+- **Deal Tier Classifier**: Micro/Small/Mid/Large/Jumbo classification with document requirements
+- **Component Scorers**: Modular scoring for revenue, cash flow, ADB, NSF, FICO, TIB, etc.
 
 ## Installation
 
 ```bash
-git clone https://github.com/silv-mt-holdings/MCA-Risk-Model.git
 cd MCA-Risk-Model
-pip install -e .
-```
-
-Or install dependencies directly:
-
-```bash
 pip install -r requirements.txt
 ```
 
-## Usage
+## Quick Start
 
-### Quick Score
+### Complete Example: Score a Deal
+
+The simplest way to score a deal using method chaining:
 
 ```python
-from scoring import MCAScorecard
+from scoring.mca_scorecard import MCAScoringModel
 
-# Create scorecard with metrics
-scorecard = MCAScorecard()
-scorecard.set_bank_metrics(
-    trailing_avg_3mo=45000,
-    trailing_avg_6mo=42000,
-    trend='stable',
-    nsf_count=2,
-    avg_daily_balance=8500
-)
-scorecard.set_credit_metrics(fico_score=680)
-scorecard.set_industry('restaurant')
-scorecard.set_deal_metrics(position_count=1, funding_amount=25000)
+# Score a deal with method chaining
+result = (MCAScoringModel()
+    .set_application(
+        business_name="Joe's Pizza",
+        industry="restaurant",
+        fico_score=680,
+        time_in_business_months=36,
+        monthly_merchant_volume=38000,
+        merchant_tenure_months=24
+    )
+    .set_bank_analytics(
+        monthly_true_revenue=45000,
+        average_daily_balance=15000,
+        nsf_count_90d=1,
+        negative_days_90d=0,
+        deposit_variance=0.18,
+        total_deposits_90d=135000,
+        total_withdrawals_90d=128000,
+        mca_positions=[]
+    )
+    .score(requested_amount=50000))
 
-# Get composite score and letter grade
-result = scorecard.calculate()
-print(f"Score: {result.score}/100")
-print(f"Grade: {result.letter_grade}")
+# Display results
+print(f"\n{'='*70}")
+print(f"SCORING RESULT")
+print(f"{'='*70}\n")
+print(f"Total Score: {result.total_score:.1f}/100")
+print(f"Letter Grade: {result.letter_grade} (Tier {result.tier})")
+print(f"Recommended Factor: {result.recommended_factor:.2f}")
+print(f"Max Advance: ${result.max_advance:,.0f}")
+print(f"Max Advance %: {result.max_advance_pct*100:.0f}%")
+print(f"Term Range: {result.term_months_range[0]}-{result.term_months_range[1]} months")
+print(f"Approvable: {'Yes' if result.is_approvable else 'No'}")
+
+# Component scores breakdown
+print(f"\n{'='*70}")
+print(f"COMPONENT SCORES")
+print(f"{'='*70}\n")
+for component, score in result.component_scores.items():
+    print(f"  {component:25s}: {score:6.2f} pts")
+
+# Pre-check validation
+if result.pre_check.blockers:
+    print(f"\nBlockers:")
+    for blocker in result.pre_check.blockers:
+        print(f"  [X] {blocker}")
+
+if result.warnings:
+    print(f"\nWarnings:")
+    for warning in result.warnings:
+        print(f"  [!] {warning}")
 ```
 
-### Full Pipeline
+### Example: Parse Bank Statement
 
 ```python
-from parsing import BankStatementParser
-from analytics import CashFlowAnalyzer
-from scoring import MCAScorecard
+from parsing.bank_statement_parser import BankStatementParser
 
-# Parse bank statements
 parser = BankStatementParser()
-transactions = parser.parse_pdf('statement.pdf')
 
-# Analyze cash flow
-analyzer = CashFlowAnalyzer(transactions)
-metrics = analyzer.calculate_metrics()
+# Parse PDF or text
+with open('bank_statement.pdf', 'rb') as f:
+    result = parser.parse(f.read(), 'statement.pdf')
 
-# Score the deal
-scorecard = MCAScorecard()
-scorecard.load_metrics(metrics)
-result = scorecard.calculate()
+# Access parsed data
+print(f"True Revenue (90d): ${result.summary.true_revenue_90d:,.2f}")
+print(f"Monthly True Revenue: ${result.summary.monthly_true_revenue:,.2f}")
+print(f"Average Daily Balance: ${result.summary.average_daily_balance:,.2f}")
+print(f"NSF Count: {result.summary.nsf_count}")
+print(f"Negative Days: {result.summary.negative_days_90d}")
+print(f"Deposit Variance: {result.summary.deposit_variance:.2%}")
 
-print(result.summary())
+# MCA positions detected
+print(f"\nMCA Positions Found: {len(result.mca_positions)}")
+for position in result.mca_positions:
+    print(f"  - {position.mca_name}: ${position.payment_amount:,.2f}/payment")
+    print(f"    Est. Monthly: ${position.avg_monthly_payment:,.2f}")
+
+# Transactions
+print(f"\nTotal Transactions: {len(result.transactions)}")
+true_revenue_txns = [t for t in result.transactions if t.is_true_revenue]
+print(f"True Revenue Transactions: {len(true_revenue_txns)}")
 ```
 
-### CLI Usage
+### Example: Analyze Cash Flow Trends
 
-```bash
-# Score from bank statement PDF
-python cli.py score statement.pdf --fico 680 --industry restaurant
+```python
+from analytics.cashflow_analyzer import BankCashFlowAnalyzer
 
-# Analyze only (no scoring)
-python cli.py analyze statement.pdf --output metrics.json
+analyzer = BankCashFlowAnalyzer()
+
+# Add 6 months of data
+months_data = [
+    (7,  2025, 10000, 12000, 45000, 42000),
+    (8,  2025, 12000, 13000, 47000, 44000),
+    (9,  2025, 13000, 15000, 50000, 46000),
+    (10, 2025, 15000, 14000, 48000, 45000),
+    (11, 2025, 14000, 16000, 52000, 48000),
+    (12, 2025, 16000, 17000, 54000, 50000),
+]
+
+for month, year, beg_bal, end_bal, deposits, withdrawals in months_data:
+    analyzer.add_monthly_summary(
+        month=month,
+        year=year,
+        beginning_balance=beg_bal,
+        ending_balance=end_bal,
+        total_deposits=deposits,
+        total_withdrawals=withdrawals
+    )
+
+# Calculate trailing averages
+trailing = analyzer.calculate_trailing_averages()
+print(f"3-Month Avg Deposits: ${trailing['avg_3_month_deposits']:,.2f}")
+print(f"6-Month Avg Deposits: ${trailing['avg_6_month_deposits']:,.2f}")
+print(f"Trend: {trailing['trend'].upper()}")
+
+# Calculate trends
+trends = analyzer.calculate_monthly_trends()
+print(f"\nDeposit Trends:")
+print(f"  Direction: {trends['trend_direction'].upper()}")
+print(f"  Volatility (CV): {trends['volatility_cv']:.1f}%")
+print(f"  High Volatility: {'Yes' if trends['high_volatility'] else 'No'}")
+
+# Generate underwriting summary
+summary = analyzer.generate_underwriting_summary()
+print(f"\nUnderwriting Summary:")
+print(f"  Red Flags: {len(summary['red_flags'])}")
+print(f"  Warnings: {len(summary['warnings'])}")
+
+if summary['red_flags']:
+    print("\nRed Flags:")
+    for flag in summary['red_flags']:
+        print(f"  [X] {flag}")
+
+if summary['warnings']:
+    print("\nWarnings:")
+    for warning in summary['warnings']:
+        print(f"  [!] {warning}")
 ```
 
-## Configuration
+### Example: Letter Grader Usage
 
-Scoring weights and thresholds are configurable via JSON files in `data/`:
+```python
+from scoring.letter_grader import LetterGrader, get_letter_grade
 
-- **scoring_weights.json** - Category weight distribution
-- **letter_grade_thresholds.json** - Score-to-grade mapping
-- **industry_risk_db.json** - Industry risk tier database
+grader = LetterGrader()
 
-## Scoring Categories
+# Get letter grade from score
+score = 85
+grade = grader.get_grade(score)  # Returns 'A-'
 
-| Category | Weight | Components |
-|----------|--------|------------|
-| Bank Metrics | 40% | Trailing avg, trend, volatility, NSF, ADB |
-| Credit Metrics | 25% | FICO score, credit utilization |
-| Industry Metrics | 20% | Industry tier, time in business |
-| Deal Metrics | 15% | Position count, funding amount |
+# Get comprehensive grade summary
+summary = grader.get_grade_summary(score)
+print(f"Score: {summary['score']}/100")
+print(f"Letter Grade: {summary['letter_grade']}")
+print(f"Tier: {summary['tier']}")
+print(f"Factor Range: {summary['factor_range'][0]:.2f} - {summary['factor_range'][1]:.2f}")
+print(f"Recommended Factor: {summary['recommended_factor']:.2f}")
+print(f"Max Advance %: {summary['max_advance_pct']*100:.0f}%")
+print(f"Term Range: {summary['term_months_range'][0]}-{summary['term_months_range'][1]} months")
+print(f"Approvable: {'Yes' if summary['is_approvable'] else 'No'}")
+print(f"Tier 1 (A tier): {'Yes' if summary['is_tier_1'] else 'No'}")
 
-## Letter Grades
+# Calculate max advance
+monthly_revenue = 50000
+max_advance = grader.calculate_max_advance(grade, monthly_revenue)
+print(f"\nMax Advance: ${max_advance:,.0f}")
 
-| Grade | Score Range | Risk Level |
-|-------|-------------|------------|
-| A | 80-100 | Low Risk |
-| B | 65-79 | Moderate Risk |
-| C | 50-64 | Standard Risk |
-| D | 35-49 | High Risk |
-| F | 0-34 | Very High Risk |
+# Convenience function
+grade = get_letter_grade(85)  # Returns 'A-'
+```
+
+### Example: Industry Risk Assessment
+
+```python
+from scoring.industry_scorer import IndustryScorer, get_industry_risk
+
+scorer = IndustryScorer()
+
+# Get industry risk summary
+industry = "restaurant"
+summary = scorer.get_industry_summary(industry)
+
+print(f"Industry: {industry.replace('_', ' ').title()}")
+print(f"Tier: {summary['tier']} - {summary['tier_name']}")
+print(f"Score Adjustment: {summary['adjustment']:+.0f} points")
+print(f"Factor Modification: {summary['factor_mod']:+.3f}")
+print(f"Note: {summary['note']}")
+
+# Compare multiple industries
+industries = ['dental', 'restaurant', 'trucking', 'cannabis']
+print(f"\n{'Industry':<25} {'Tier':<5} {'Adjustment':<12} {'Factor Mod'}")
+print("-" * 65)
+
+for ind in industries:
+    risk = scorer.get_industry_risk(ind)
+    if risk:
+        print(f"{ind.replace('_', ' ').title():<25} {risk['tier']:<5} "
+              f"{risk['adjustment']:+6.0f} pts   {risk['factor_mod']:+.3f}")
+
+# Search for industries
+results = scorer.search_industries('medical')
+print(f"\nFound medical industries: {', '.join(results)}")
+
+# Convenience function
+risk = get_industry_risk('restaurant')  # Returns dict or None
+```
+
+## Architecture
+
+```
+MCA-Risk-Model/
+├── parsing/              # INPUT LAYER
+│   ├── bank_statement_parser.py
+│   └── statement_templates/
+├── analytics/            # PROCESSING LAYER
+│   ├── cashflow_analyzer.py
+│   ├── deposit_categorizer.py
+│   ├── mca_detector.py
+│   ├── nsf_analyzer.py
+│   └── balance_tracker.py
+├── scoring/              # SCORING LAYER
+│   ├── mca_scorecard.py
+│   ├── letter_grader.py
+│   ├── industry_scorer.py
+│   └── deal_tier_classifier.py
+├── models/               # SHARED DATA CLASSES
+│   ├── transactions.py
+│   ├── analytics.py
+│   └── scoring.py
+├── data/                 # REFERENCE DATA (JSON)
+│   ├── letter_grade_thresholds.json
+│   ├── scoring_weights.json
+│   ├── industry_risk_db.json
+│   ├── mca_lender_list.json
+│   ├── revenue_patterns.json
+│   └── deal_tier_thresholds.json
+└── tests/                # TEST SUITE
+    ├── test_parsing.py
+    ├── test_analytics.py
+    └── test_scoring.py
+```
+
+## Scoring Methodology
+
+### 100-Point Composite Score
+
+| Component | Points | Description |
+|-----------|--------|-------------|
+| **Bank Analytics** | **55** | |
+| True Revenue | 15 | Monthly true revenue volume |
+| Cash Flow Margin (CFCR) | 12 | Available cash after obligations |
+| Average Daily Balance | 10 | ADB relative to funding |
+| NSF/Overdraft | 10 | NSF count + negative days (penalty) |
+| Deposit Consistency | 8 | Variance in deposits |
+| **Credit** | **12** | |
+| FICO Score | 12 | Self-reported (discounted weight) |
+| **Merchant Data** | **13** | |
+| Merchant Volume | 8 | Card processing volume |
+| Merchant Tenure | 5 | Time with processor |
+| **Business Profile** | **15** | |
+| Time in Business | 8 | TIB in months |
+| Industry Risk | 7 | Industry segmentation (5 tiers) |
+| **Position Analysis** | **5** | |
+| Existing Positions | 5 | MCA stacking analysis |
+
+### Letter Grades (13 Grades)
+
+- **A+ (95-100)**: Factor 1.10-1.15, up to 20% advance
+- **A (90-94)**: Factor 1.12-1.18, up to 18% advance
+- **A- (85-89)**: Factor 1.15-1.20, up to 16% advance
+- **B+ (80-84)**: Factor 1.18-1.25, up to 15% advance
+- **B (75-79)**: Factor 1.22-1.28, up to 14% advance
+- **B- (70-74)**: Factor 1.25-1.32, up to 12% advance
+- **C+ (65-69)**: Factor 1.28-1.35, up to 11% advance
+- **C (60-64)**: Factor 1.32-1.38, up to 10% advance
+- **C- (55-59)**: Factor 1.35-1.42, up to 9% advance
+- **D+ (50-54)**: Factor 1.38-1.45, up to 8% advance
+- **D (45-49)**: Factor 1.42-1.48, up to 7% advance
+- **D- (40-44)**: Factor 1.45-1.52, up to 6% advance
+- **F (0-39)**: Factor 1.50-1.65, up to 5% advance
+
+## Data Files
+
+All configuration data is externalized to JSON for easy customization:
+
+- **letter_grade_thresholds.json**: Letter grade definitions and pricing
+- **scoring_weights.json**: Component weights (must sum to 100)
+- **industry_risk_db.json**: 60+ industries with risk tiers
+- **mca_lender_list.json**: 50+ MCA lenders with AKA names
+- **revenue_patterns.json**: True vs non-true revenue patterns
+- **deal_tier_thresholds.json**: Deal sizing and document requirements
 
 ## Testing
 
 ```bash
-python -m pytest tests/
+# Run all tests
+python -m pytest tests/ -v
+
+# Run specific test module
+python -m pytest tests/test_scoring.py -v
+
+# With coverage
+python -m pytest tests/ --cov=. --cov-report=html
 ```
 
-## Project Structure
+## Dependencies
 
-```
-MCA-Risk-Model/
-├── README.md
-├── requirements.txt
-├── setup.py
-├── .gitignore
-│
-├── parsing/
-│   ├── __init__.py
-│   ├── bank_statement_parser.py
-│   ├── pdf_extractor.py
-│   └── statement_templates/
-│       └── __init__.py
-│
-├── analytics/
-│   ├── __init__.py
-│   ├── cashflow_analyzer.py
-│   ├── deposit_categorizer.py
-│   ├── nsf_analyzer.py
-│   └── balance_tracker.py
-│
-├── scoring/
-│   ├── __init__.py
-│   ├── mca_scorecard.py
-│   ├── credit_scoring.py
-│   ├── industry_scorer.py
-│   ├── letter_grader.py
-│   └── composite_scorer.py
-│
-├── data/
-│   ├── industry_risk_db.json
-│   ├── scoring_weights.json
-│   └── letter_grade_thresholds.json
-│
-├── tests/
-│   ├── __init__.py
-│   ├── test_parser.py
-│   ├── test_analytics.py
-│   └── test_scoring.py
-│
-└── cli.py
-```
+- **Core**: Python 3.8+
+- **Analytics**: pandas, numpy
+- **Parsing**: python-dateutil (optional)
+- **Development**: pytest, pytest-cov
+
+## Contributing
+
+This is a standalone library extracted from the UnderwritingToolkit project. To contribute:
+
+1. Maintain separation of concerns (parsing → analytics → scoring)
+2. Keep data in JSON files (never hardcode thresholds)
+3. Write tests for all new features
+4. Follow existing patterns for consistency
 
 ## License
 
-Proprietary - Silv MT Holdings
+Internal use only - IntensiveCapFi / Silv MT Holdings
+
+## Version
+
+**v2.0** - Initial modular extraction (January 2026)
+
+---
+
+**Author**: IntensiveCapFi
+**Migrated from**: UnderwritingToolkit (UnderwritingToolkit project)
