@@ -28,6 +28,13 @@ from .credit_scoring import (
     CreditScorer
 )
 
+# Import precheck module for Google Places verification
+try:
+    from .precheck import run_precheck, precheck_to_score_adjustment, PrecheckResult, PrecheckStatus
+    _HAS_PRECHECK = True
+except ImportError:
+    _HAS_PRECHECK = False
+
 # =============================================================================
 # OPTIONAL INTEGRATION: parsing module
 # Risk Model can run STANDALONE or integrate with bank_statement_parser

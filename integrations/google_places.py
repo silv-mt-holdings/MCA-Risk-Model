@@ -42,10 +42,12 @@ PLACES_API_BASE = "https://places.googleapis.com/v1/places"
 GEOCODING_API_BASE = "https://maps.googleapis.com/maps/api/geocode/json"
 
 # Google Place Types to MCA Industry mapping
+# Priority order matters - more specific types should be checked first
 PLACE_TYPE_TO_INDUSTRY = {
-    # Tier 1 - Preferred
-    "doctor": "medical",
+    # Tier 1 - Preferred (check first)
     "dentist": "dental",
+    "dental_clinic": "dental",
+    "doctor": "medical",
     "veterinary_care": "veterinary",
     "hospital": "medical",
     "pharmacy": "pharmacy",
@@ -54,30 +56,37 @@ PLACE_TYPE_TO_INDUSTRY = {
     "lawyer": "legal",
     "insurance_agency": "insurance",
 
+    # Auto - specific types before generic
+    "car_dealer": "auto_dealer",
+    "car_repair": "auto_repair",
+    "car_wash": "auto_service",
+    
     # Tier 2 - Standard
     "restaurant": "restaurant",
+    "italian_restaurant": "restaurant",
+    "pizza_restaurant": "restaurant",
+    "chinese_restaurant": "restaurant",
+    "mexican_restaurant": "restaurant",
+    "american_restaurant": "restaurant",
     "cafe": "restaurant",
     "bakery": "restaurant",
     "meal_takeaway": "restaurant",
     "meal_delivery": "restaurant",
     "bar": "bar",
     "night_club": "bar",
-    "store": "retail",
     "clothing_store": "retail",
     "shoe_store": "retail",
-    "jewelry_store": "retail",
+    "jewelry_store": "jewelry",
     "electronics_store": "retail",
     "furniture_store": "retail",
     "home_goods_store": "retail",
     "hardware_store": "retail",
     "pet_store": "retail",
     "florist": "retail",
+    "store": "retail",  # Generic store last
     "supermarket": "grocery",
     "grocery_or_supermarket": "grocery",
     "convenience_store": "convenience",
-    "car_repair": "auto_repair",
-    "car_dealer": "auto_dealer",
-    "car_wash": "auto_service",
     "gas_station": "gas_station",
     "general_contractor": "construction",
     "electrician": "construction",
@@ -95,10 +104,34 @@ PLACE_TYPE_TO_INDUSTRY = {
     "real_estate_agency": "real_estate",
     "travel_agency": "travel",
 
-    # Tier 3+ / Needs Review
+    # Tier 3+ / High Risk
     "casino": "gambling",
     "liquor_store": "liquor",
     "pawn_shop": "pawn",
+}
+
+# Keyword-based industry detection (overrides Google types)
+# These catch edge cases where Google's type is generic but name is specific
+INDUSTRY_KEYWORDS = {
+    # Tier 5 - Specialty/Prohibited (check first - highest risk)
+    "cannabis": ["cannabis", "dispensary", "marijuana", "weed", "420"],
+    "cbd": ["cbd", "hemp", "delta 8", "delta-8", "thc", "kratom"],
+    "gambling": ["casino", "slots", "poker room", "betting", "sportsbook"],
+    "firearms": ["gun", "firearm", "ammo", "ammunition", "rifle", "pistol"],
+    "adult_entertainment": ["adult", "xxx", "strip club", "gentlemen"],
+    "pawn": ["pawn", "cash for gold", "we buy gold"],
+    "check_cashing": ["check cash", "payday loan", "cash advance", "title loan"],
+    "bail_bonds": ["bail bond", "bondsman"],
+    
+    # Tier 4 - High Risk
+    "trucking": ["trucking", "freight", "logistics", "hauling", "cdl"],
+    "used_cars": ["used car", "pre-owned", "buy here pay here", "bhph"],
+    "towing": ["towing", "tow truck", "roadside"],
+    
+    # Tier 3 - Elevated
+    "bar": ["bar ", "tavern", "pub ", "lounge", "nightclub", "night club"],
+    "hookah": ["hookah", "shisha", "vape lounge"],
+    "liquor": ["liquor store", "wine & spirits", "package store"],
 }
 
 # Address component type mappings
@@ -231,10 +264,19 @@ class PlaceResult:
             self.industry_type = self._map_industry()
 
     def _map_industry(self) -> str:
-        """Map Google place types to MCA industry"""
+        """Map Google place types to MCA industry with keyword detection"""
+        # PRIORITY 1: Check business name for high-risk keywords
+        name_lower = self.name.lower() if self.name else ""
+        for industry, keywords in INDUSTRY_KEYWORDS.items():
+            for keyword in keywords:
+                if keyword in name_lower:
+                    return industry
+        
+        # PRIORITY 2: Check Google place types (ordered by specificity)
         for place_type in self.types:
             if place_type in PLACE_TYPE_TO_INDUSTRY:
                 return PLACE_TYPE_TO_INDUSTRY[place_type]
+        
         return "unknown"
 
     @property
