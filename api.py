@@ -22,8 +22,8 @@ from pydantic import BaseModel
 from typing import List, Optional
 
 # --- TOOLKIT IMPORTS (Functional Core) ---
-from parsing.bank_statement_parser import BankStatementParser
-from scoring.mca_scorecard import MCAScorecard as RBFScoringModel
+from parser import BankStatementParser
+from scoring import RBFScoringModel, DTICalculator, LetterGrader
 
 app = FastAPI(
     title="LendEdge RBF Engine",

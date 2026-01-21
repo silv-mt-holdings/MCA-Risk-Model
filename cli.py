@@ -53,14 +53,14 @@ def cmd_score(args):
 
     # Import scoring module
     try:
-        from scoring import MCAScorecard
+        from scoring import RBFScoringModel
     except ImportError:
         print("Error: Could not import scoring module.")
         print("Make sure the package is installed: pip install -e .")
         return 1
 
     # Create scorecard
-    scorecard = MCAScorecard()
+    scorecard = RBFScoringModel()
 
     # Set metrics from arguments
     if args.fico:
