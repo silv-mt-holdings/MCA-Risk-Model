@@ -6,7 +6,8 @@
       "Bash(python:*)",
       "Bash(done)",
       "Bash(for toolkit in bankstatement-parser-toolkit transaction-classifier-toolkit cashflow-analytics-toolkit rbf-position-tracker-toolkit rbf-scoring-toolkit rbf-pricing-toolkit)",
-      "Bash(do mkdir -p \"$toolkit/.github\")"
+      "Bash(do mkdir -p \"$toolkit/.github\")",
+      "Bash(tree:*)"
     ],
     "deny": [],
     "ask": []
