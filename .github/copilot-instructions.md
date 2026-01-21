@@ -1,328 +1,522 @@
-# MCA-Risk-Model AI Coding Guidelines
+# Risk-Model-01 AI Coding Guidelines
 
 ## Project Overview
 
-**MCA-Risk-Model** is a production-ready Python library for Merchant Cash Advance (MCA) underwriting. It performs bank statement parsing, cash flow analysis, and comprehensive risk scoring using a **layered three-tier architecture**.
+**Risk-Model-01** is the Imperative Shell and orchestration layer for the RBF (Revenue-Based Financing) risk assessment system.
 
-**Core Purpose**: Score MCA deals with 100-point composite scores, assign letter grades (A+ to F), and provide risk tiers with underwriting recommendations.
+**Core Purpose**: Orchestrate 6 functional core toolkits, handle I/O (API, database, files), and coordinate the end-to-end underwriting workflow.
 
----
-
-## Architecture: Three-Tier Separation of Concerns
-
-### Layer 1: **Parsing** (`parsing/`)
-- **Responsibility**: Extract raw financial data from bank statement PDFs
-- **Key Files**: `bank_statement_parser.py` (main), `bank_templates.py` (bank-specific patterns)
-- **Deliverable**: `ParsingResult` with transactions, balances, and metadata
-- **Key Pattern**: Template-based bank detection; each bank has regex patterns for transactions and balances
-- **When to Update**: New bank support, transaction classification rules, or balance extraction logic
-- **Common Pitfall**: Regex patterns must be tested against real bank statement text. If a bank memo pattern doesn't match, add to `revenue_patterns.json`, not inline to parser.
-
-### Layer 2: **Analytics** (`analytics/`)
-- **Responsibility**: Calculate financial metrics from parsed transactions
-- **Key File**: `cashflow_analyzer.py`
-- **Inputs**: Transaction lists from Parser
-- **Deliverable**: `CashFlowSummary` with trailing averages (3/6/12-month), trends, NSF counts, ADB
-- **Key Pattern**: Self-contained metric calculators; no side effects
-- **When to Update**: New financial metrics, volatility formulas, or classification rules
-- **Important**: All metrics must be based on 90-day or specified windows. Never mix timeframes (e.g., don't average 90-day revenue with 180-day NSF).
-
-### Layer 3: **Scoring** (`scoring/`)
-- **Responsibility**: Produce risk scores, letter grades, and deal recommendations
-- **Key Files**: `mca_scorecard.py` (main engine), `letter_grader.py`, `industry_scorer.py`
-- **Inputs**: Application data + Analytics results
-- **Deliverable**: `ScoringResult` with 100-point score, letter grade, recommended factor, max advance
-- **Key Pattern**: Weighted component scoring; weights loaded from `data/scoring_weights.json`
-- **When to Update**: Score weights, new scoring components, or tier classifications
-- **Critical Pre-Check**: Scoring validates minimum thresholds (FICO, business age, revenue) before component scoring. See `_pre_check()` logic.
+**Architecture Pattern**: **Imperative Shell** (I/O + Orchestration)
 
 ---
 
-## Data Models: The Common Language
+## Architecture: Functional Core + Imperative Shell
 
-All layers communicate through shared models in `models/`:
-- **`ApplicationData`**: Merchant info (name, industry, FICO, TIB)
-- **`BankAnalytics`**: Calculated metrics (revenue, ADB, NSF, variance)
-- **`ScoringResult`**: Final output (score, grade, factor, max_advance)
-- **`Transaction`**: Individual transaction with type, amount, flags
-- **`CashFlowSummary`**: Analytics summary (30/90/180-day averages, trends)
+This project implements the **Functional Core / Imperative Shell** pattern:
 
-**Important**: Update models in `models/` before adding fields to any layer. All new data flows through these types.
+### Functional Core (6 Toolkits - External)
+Pure functional libraries with NO I/O:
+1. **bankstatement-parser-toolkit** - Extract data from PDFs
+2. **transaction-classifier-toolkit** - Classify transaction types
+3. **cashflow-analytics-toolkit** - Calculate financial metrics
+4. **rbf-position-tracker-toolkit** - Detect RBF positions
+5. **rbf-scoring-toolkit** - Calculate risk scores
+6. **rbf-pricing-toolkit** - Determine pricing
+
+### Imperative Shell (Risk-Model-01 - This Repo)
+Handles I/O and orchestration:
+- **api.py** - FastAPI endpoints (file upload, HTTP responses)
+- **cli.py** - Command-line interface
+- **integrations/** - MSSQL database, Google Places API
+- **Orchestration** - Coordinates toolkit workflow
 
 ---
 
-## Working with Configuration Files
-
-### Structure: `data/` Directory
-All configuration files are JSON and loaded at module initialization (not runtime):
+## File Structure
 
 ```
-data/
-  scoring_weights.json       # 11-component weights (100 total points)
-  revenue_patterns.json      # Regex patterns for transaction classification
-  mca_lender_list.json       # 50+ MCA lender names with aliases
-  letter_grade_thresholds.json  # Score ranges for A+ through F grades
-  industry_risk_db.json      # Industry codes mapped to 5-tier risk levels
-  deal_tier_thresholds.json  # Deal sizing rules (document requirements)
+Risk-Model-01/
+├── api.py                      # FastAPI orchestration (NEW)
+├── cli.py                      # CLI interface
+├── requirements.txt            # All 6 toolkits + FastAPI + MSSQL
+├── .env.example                # Environment variables
+├── integrations/
+│   ├── mssql.py                # Database I/O
+│   └── google_places.py        # External API calls
+├── examples/
+│   ├── complete_scoring.py     # End-to-end example
+│   └── quick_start.py          # Quick demo
+├── data/                       # Configuration (JSON)
+│   ├── scoring_weights.json
+│   ├── letter_grade_thresholds.json
+│   └── industry_risk_db.json
+└── tests/
+    └── test_integration.py     # Integration tests
 ```
 
-### Key Workflows
-**Adding a new MCA lender?** → Edit `mca_lender_list.json` under `"lenders"` section. Add company name as key, list of aliases as value. No code change needed.
+---
 
-**Adjusting scoring weights?** → Edit `data/scoring_weights.json`. Weights must sum to 100 points. Test impact with `examples/complete_scoring.py` before committing.
+## Core Workflow: API Orchestration
 
-**Adding transaction classification rule?** → Edit `revenue_patterns.json`. Add pattern to `true_revenue_patterns` or `non_true_revenue_patterns` array. Use `test_real_pdf.py` with real PDFs to validate.
+The `api.py` file is the **bridge** between the React frontend and Python backend:
+
+```python
+@app.post("/analyze", response_model=DealResponse)
+async def analyze_statement(
+    file: UploadFile = File(...),
+    industry: str = Form("construction"),
+    tib_months: int = Form(24),
+    fico: int = Form(680)
+):
+    # 1. I/O: Save uploaded file temporarily
+    with open(temp_filename, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    # 2. FUNCTIONAL CORE: Parse PDF (Pure function)
+    parser = BankStatementParser()
+    result = parser.parse(pdf_bytes)
+
+    # 3. FUNCTIONAL CORE: Classify transactions (Pure function)
+    classifier = RevenueClassifier()
+    classified = classifier.classify_all(result.transactions)
+
+    # 4. FUNCTIONAL CORE: Analyze cash flow (Pure function)
+    analyzer = CashFlowAnalyzer()
+    cash_flow = analyzer.analyze(classified)
+
+    # 5. FUNCTIONAL CORE: Score deal (Pure function)
+    scorer = RBFScoringModel()
+    scorer.set_application(industry=industry, tib_months=tib_months, fico=fico)
+    scorer.set_bank_analytics(monthly_true_revenue=cash_flow.monthly_revenue, ...)
+    score_result = scorer.calculate()
+
+    # 6. FUNCTIONAL CORE: Calculate pricing (Pure function)
+    pricer = PricingCalculator()
+    pricing = pricer.calculate(grade=score_result.letter_grade, monthly_revenue=cash_flow.monthly_revenue)
+
+    # 7. I/O: Return HTTP response
+    return DealResponse(...)
+```
+
+**Key Pattern**: I/O happens in the Imperative Shell; pure logic happens in toolkits.
+
+---
+
+## Responsibilities
+
+### What Risk-Model-01 SHOULD Do (Imperative Shell)
+- File I/O (read/write files)
+- HTTP requests/responses (FastAPI)
+- Database operations (MSSQL)
+- External API calls (Google Places)
+- Orchestrate toolkit workflow
+- Handle errors and exceptions
+- Logging and monitoring
+
+### What Risk-Model-01 SHOULD NOT Do
+- Implement parsing logic (use parser toolkit)
+- Implement scoring logic (use scoring toolkit)
+- Duplicate functional code (DRY - use toolkits)
 
 ---
 
 ## Key Development Workflows
 
-### Running Tests
+### Running the API Server
+
 ```bash
-# All tests
+# Install dependencies
+pip install -r requirements.txt
+
+# Run FastAPI server
+python api.py
+
+# Server runs at: http://localhost:8000
+# API docs at: http://localhost:8000/docs
+```
+
+### Running the CLI
+
+```bash
+# Score a deal
+python cli.py score --fico 680 --industry restaurant --amount 50000
+
+# Analyze statement
+python cli.py analyze statement.pdf
+
+# Show config
+python cli.py config --show
+```
+
+### Testing Integration
+
+```bash
+# Run all tests
 pytest
+
+# Run integration tests
+pytest tests/test_integration.py -v
 
 # With coverage
 pytest --cov=. --cov-report=html
-
-# Specific test file
-pytest tests/test_integration.py -v
-
-# Filter by name
-pytest -k "test_zelle" -v
 ```
 
-### Manual Testing
+---
+
+## Integration with Frontend (lendedge-portal)
+
+The React frontend communicates with the API:
+
+```typescript
+// Frontend: lendedge-portal/app/page.tsx
+const formData = new FormData();
+formData.append('file', pdfFile);
+formData.append('industry', 'construction');
+formData.append('tib_months', '24');
+formData.append('fico', '680');
+
+const response = await fetch('http://localhost:8000/analyze', {
+  method: 'POST',
+  body: formData
+});
+
+const data = await response.json();
+// data.grade, data.revenue, data.adb, data.violations
+```
+
+---
+
+## Database Integration (MSSQL)
+
+```python
+# integrations/mssql.py
+from pymssql import connect
+
+def save_application(conn, business_name, score_result, pricing):
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO applications (business_name, letter_grade, total_score, max_advance)
+        VALUES (%s, %s, %s, %s)
+    """, (business_name, score_result.letter_grade, score_result.total_score, pricing.max_advance))
+    conn.commit()
+    return cursor.lastrowid
+```
+
+**Pattern**: Database I/O stays in the Imperative Shell; toolkits never touch the database.
+
+---
+
+## Configuration Data
+
+All configuration files are JSON (no hardcoded thresholds):
+
+```
+data/
+├── scoring_weights.json         # Component weights (must sum to 100)
+├── letter_grade_thresholds.json # Grade definitions
+├── industry_risk_db.json        # 60+ industries, 5 tiers
+├── mca_lender_list.json         # Known RBF/MCA lenders
+├── revenue_patterns.json        # Transaction classification patterns
+└── deal_tier_thresholds.json   # Deal sizing rules
+```
+
+**Important**: Configuration is loaded at module init, not on every request.
+
+---
+
+## Error Handling
+
+```python
+@app.post("/analyze")
+async def analyze_statement(...):
+    try:
+        # Orchestration logic
+        ...
+    except ParsingError as e:
+        raise HTTPException(status_code=400, detail=f"PDF parsing failed: {str(e)}")
+    except ScoringError as e:
+        raise HTTPException(status_code=422, detail=f"Scoring failed: {str(e)}")
+    except Exception as e:
+        logger.error(f"Unexpected error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+    finally:
+        # Cleanup temporary files
+        if os.path.exists(temp_filename):
+            os.remove(temp_filename)
+```
+
+**Pattern**: Handle errors gracefully; always cleanup resources.
+
+---
+
+## Environment Variables
+
 ```bash
-# Quick smoke test (see README.md for full example)
-python examples/quick_start.py
-
-# Complete scoring workflow
-python examples/complete_scoring.py
-
-# Test specific parser feature
-python -c "from parsing.bank_statement_parser import BankStatementParser; ..."
+# .env
+MSSQL_CONNECTION_STRING=Server=localhost;Database=lending;User=sa;Password=***
+GOOGLE_PLACES_API_KEY=AIza***
+LOG_LEVEL=INFO
+CORS_ORIGINS=http://localhost:3000,http://localhost:3001
 ```
 
-### Adding Bank Support
-1. Add template to `bank_templates.py` with bank name, detection patterns, and regex
-2. Update `BANK_TEMPLATES` dict
-3. Add test PDF to `data/` with name matching bank
-4. Run `test_real_pdf.py` to validate
+**Usage**:
+```python
+from dotenv import load_dotenv
+import os
 
-### Updating Scoring Weights
-1. Edit `data/scoring_weights.json` (points per component)
-2. Run `examples/complete_scoring.py` to verify impact
-3. Update test expectations in `tests/test_integration.py`
+load_dotenv()
+db_connection = os.getenv('MSSQL_CONNECTION_STRING')
+```
 
 ---
 
 ## Coding Conventions
 
 ### Style & Structure
-- **Indentation**: 4 spaces (Python standard)
-- **Imports**: Group by standard library, third-party (pandas, numpy), local
-- **Type Hints**: Use `from typing import Dict, List, Optional` for function signatures
-- **Docstrings**: Triple-quoted for modules/classes; include Author and Version in parsing/scoring modules
+- **Type Hints**: Required for API endpoints and public functions
+- **Docstrings**: Triple-quoted for all API endpoints
+- **Error Handling**: Always use try/except with cleanup in finally
+- **Logging**: Use Python logging module (not print statements)
 
-### Naming & Patterns
-- **Classes**: PascalCase (`BankStatementParser`, `MCAScoringModel`)
-- **Functions**: snake_case (`calculate_trailing_average`, `extract_balance_info`)
-- **Constants**: UPPER_SNAKE_CASE (`SCORING_WEIGHTS`, `MIN_ADB`)
-- **Data Fields**: Reflect financial domain (`monthly_true_revenue`, `nsf_count_90d`, not `rev` or `nsf_cnt`)
+### API Endpoint Pattern
 
-### Composability Over Inlining
-- **Parser layer**: Separate methods for `_extract_transactions()`, `_extract_balance_info()`, `_extract_mca_positions()`
-- **Analytics**: Reuse existing calculators; add new methods rather than duplicating logic
-- **Scoring**: Use component scorers (`_score_revenue()`, `_score_adb()`) instead of monolithic logic
+```python
+@app.post("/endpoint", response_model=ResponseModel)
+async def endpoint_name(
+    file: UploadFile = File(...),
+    param: str = Form(...)
+) -> ResponseModel:
+    """
+    Endpoint description.
+
+    Args:
+        file: Description
+        param: Description
+
+    Returns:
+        ResponseModel with ...
+
+    Raises:
+        HTTPException: 400 if ...
+        HTTPException: 500 if ...
+    """
+    try:
+        # 1. I/O operations
+        # 2. Functional Core calls
+        # 3. I/O response
+        return ResponseModel(...)
+    except SpecificError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    finally:
+        # Cleanup
+        pass
+```
 
 ---
 
-## Critical Integration Points
+## Testing Strategy
 
-### Parser → Analytics Flow
-- Parser outputs `ParsingResult.transactions` list + `CashFlowSummary` stub
-- Analytics uses `CashFlowAnalyzer` to enrich `CashFlowSummary` with metrics
-- **Bridge**: `_generate_summary()` in parser populates initial summary; analyzer refines it
+### Unit Tests (Toolkits)
+Pure function tests in each toolkit (no mocking needed).
 
-### Analytics → Scoring Flow
-- Scorecard reads `BankAnalytics` (calculated metrics) + `ApplicationData` (application info)
-- Both must be set before calling `score()`
-- **Bridge**: Method chaining pattern (`.set_bank_analytics().score()`)
+### Integration Tests (Risk-Model-01)
+Test the orchestration layer:
 
-### Transaction Classification
-- Parser classifies each transaction as `TRUE_REVENUE`, `TRANSFER`, `LOAN`, `P2P`, `MCA_PAYMENT`, etc.
-- Analytics uses classifications to filter revenue, identify Zelle transfers, flag NSF
-- Scoring consumes aggregated metrics (doesn't re-classify)
+```python
+def test_full_workflow():
+    # Mock file upload
+    with open('fixtures/sample_statement.pdf', 'rb') as f:
+        pdf_bytes = f.read()
+
+    # Call API endpoint
+    response = client.post(
+        "/analyze",
+        files={"file": ("statement.pdf", pdf_bytes, "application/pdf")},
+        data={"industry": "construction", "tib_months": 24, "fico": 680}
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data['grade'] in ['A+', 'A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'C-', 'D+', 'D', 'D-', 'F']
+    assert data['revenue'] > 0
+    assert len(data['violations']) == 5
+```
 
 ---
 
 ## Common Patterns & Idioms
 
-### Method Chaining (Fluent API)
-```python
-result = (MCAScoringModel()
-    .set_application(...)
-    .set_bank_analytics(...)
-    .score(requested_amount=50000))
-```
-Pattern: All setters return `self` for chaining.
+### Pattern 1: Toolkit Orchestration
 
-### Template-Based Flexibility
-Parser uses bank templates for extensibility:
-- **Detection**: Regex finds bank name in statement
-- **Parsing**: Bank-specific patterns extract transactions
-- **Fallback**: Generic template handles unknown banks
-
-### Weighted Component Scoring
-Scorecard loads weights from JSON, applies per-component scorers:
 ```python
-SCORING_WEIGHTS = {
-    'revenue_stability': 15,
-    'cash_flow_depth': 12,
-    'adb_strength': 10,
-    # ... 8 more components totaling 100
-}
+# Step 1: Parse (Functional Core)
+parser = BankStatementParser()
+statement = parser.parse(pdf_bytes)
+
+# Step 2: Classify (Functional Core)
+classifier = RevenueClassifier()
+classified = classifier.classify_all(statement.transactions)
+
+# Step 3: Analyze (Functional Core)
+analyzer = CashFlowAnalyzer()
+cash_flow = analyzer.analyze(classified)
+
+# Step 4: Score (Functional Core)
+scorer = RBFScoringModel()
+scorer.set_application(industry=industry, tib_months=tib_months, fico=fico)
+scorer.set_bank_analytics(**cash_flow.to_dict())
+result = scorer.calculate()
 ```
 
-### Flag-Based Metadata
-Transactions carry flags for downstream handling:
-```python
-# In parser
-transaction.flags = ['P2P_REVIEW_REQUIRED']  # Added to all P2P
+**Key**: Each toolkit provides a focused API; the shell orchestrates them.
 
-# In analytics/scoring
-if 'P2P_REVIEW_REQUIRED' in transaction.flags:
-    manual_review_required = True
+### Pattern 2: Temporary File Handling
+
+```python
+temp_filename = f"temp_{uuid.uuid4()}_{file.filename}"
+try:
+    with open(temp_filename, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    # Process file
+    result = process_file(temp_filename)
+    return result
+finally:
+    if os.path.exists(temp_filename):
+        os.remove(temp_filename)
+```
+
+### Pattern 3: Database Transactions
+
+```python
+conn = get_db_connection()
+try:
+    cursor = conn.cursor()
+    # Multiple inserts
+    cursor.execute("INSERT INTO applications ...")
+    cursor.execute("INSERT INTO violations ...")
+    conn.commit()
+except Exception as e:
+    conn.rollback()
+    raise
+finally:
+    conn.close()
 ```
 
 ---
 
-## Edge Cases & Advanced Patterns
+## Deployment
 
-### Multi-Bank Scenarios
-- Parser auto-detects bank from statement text using `detect_bank()` → checks `bank_templates.py` patterns
-- If bank not recognized, falls back to `GENERIC` template with flexible regex
-- **Best practice**: Test new banks with `test_bank_detection.py` and `test_real_pdf.py`
+### Local Development
+```bash
+# Terminal 1: Start API
+cd Risk-Model-01
+python api.py
 
-### Revenue Classification Complexity
-Three classification layers (order matters):
-1. **MCA Payment check** → Transaction classified as `MCA_PAYMENT` (not revenue)
-2. **P2P detection** → Zelle/Venmo marked `TRUE_REVENUE` + flagged `P2P_REVIEW_REQUIRED`
-3. **Pattern matching** → Use `true_revenue_patterns` and `non_true_revenue_patterns` from JSON
+# Terminal 2: Start Frontend
+cd lendedge-portal
+npm run dev
+```
 
-**Gotcha**: A transaction can be `TRUE_REVENUE` AND flagged. Flags don't change classification, they add metadata.
-
-### Scoring Pre-Checks Before Scoring
-Before any component scoring happens, `MCAScoringModel` runs `_pre_check()`:
-- FICO score < 500? → Blocker
-- Time in business < 3 months? → Blocker
-- Monthly true revenue < $10k? → Blocker
-- NSF count > 10 in 90 days? → Blocker
-
-**Result**: If blockers exist, `ScoringResult.pre_check.passed = False` and no components are scored. Use `result.pre_check.blockers` list for underwriter feedback.
-
-### Handling Missing Analytics Data
-When setting `bank_analytics`:
-- All fields optional (default to 0)
-- Scoring adapts: 0 ADB → component receives 0 points (not penalty)
-- **Recommendation**: Always populate at minimum: `monthly_true_revenue`, `average_daily_balance`, `nsf_count_90d`, `negative_days_90d`, `deposit_variance`
+### Production
+- **API**: Deploy FastAPI with Uvicorn/Gunicorn
+- **Database**: MSSQL Server (Azure SQL, AWS RDS, or on-prem)
+- **Frontend**: Deploy Next.js to Vercel or Netlify
 
 ---
 
-## Security & Configuration
-
-### No Hard-Coded Paths
-- Bank detection: Parses statement text, not file paths
-- Scoring: All data passed via method parameters, not files
-- **Exception**: `data/scoring_weights.json` is shipped with library; immutable configuration
+## Security & Best Practices
 
 ### Sensitive Data Handling
-- PDFs processed in-memory; no temp files cached
-- Transactions sanitized before logging (omit amounts, merchant names in debug output)
-- **Test Data**: Use anonymized `example-fw9.pdf` for smoke tests; keep real client PDFs outside repo
+- PDFs processed in-memory; deleted after processing
+- Database credentials in environment variables (never committed)
+- API keys in `.env` (never committed)
+- Input validation on all form data
 
----
+### CORS Configuration
+```python
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],  # Frontend URL
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+```
 
-## When to Refactor vs. Extend
+### Rate Limiting (Production)
+```python
+from slowapi import Limiter
 
-### Extend (Add New Component)
-- New scoring metric → Add to `scoring/` with weighted component method
-- New bank → Add template to `bank_templates.py`
-- New analytics calculation → Add method to `CashFlowAnalyzer`
+limiter = Limiter(key_func=lambda: request.client.host)
 
-### Refactor (Improve Existing)
-- Parser line count >500 lines → Split `bank_statement_parser.py` into modules (e.g., `transaction_extractor.py`)
-- Scoring weights frequently changing → Move to external config file with reload support
-- Duplicate metric logic in analytics → Extract to shared utility
-
-### When in Doubt
-- Check if change affects the **contract** between layers (model fields)
-- If contract changes, update `models/` **first**
-- Run `pytest` to catch breaks in integration tests
+@app.post("/analyze")
+@limiter.limit("10/minute")
+async def analyze_statement(...):
+    ...
+```
 
 ---
 
 ## Debugging & Troubleshooting
 
-### Common Issues & Solutions
-**Parser not detecting bank?** → Check `bank_templates.py` for detection patterns. Use `detect_bank(text)` in REPL to debug.
+### Common Issues
 
-**Transactions not classified?** → Verify `revenue_patterns.json` contains the memo text. Add new patterns to `true_revenue_patterns` or `non_true_revenue_patterns`.
+**Toolkit import errors?**
+- Ensure all 6 toolkits are installed: `pip install -r requirements.txt`
+- Check that toolkits are pushed to GitHub
 
-**Scoring result doesn't match expected?** → Check `scoring_weights.json` for weight values. Each component weight affects proportionally. Use `result.component_scores` dict to debug individual pieces.
+**API not responding?**
+- Check if port 8000 is available: `lsof -i :8000`
+- Verify CORS origins match frontend URL
 
-**P2P transactions missing flags?** → Ensure `bank_templates.py` includes Zelle/Venmo patterns. Check transaction memo against `zelle_venmo_patterns` in JSON.
+**Database connection failed?**
+- Verify `.env` file exists with correct connection string
+- Test connection: `python -c "import pymssql; pymssql.connect(...)"`
 
-### Testing Specific Features
-```bash
-# Test parser with real PDF
-python test_real_pdf.py
+### Logging
 
-# Test Zelle detection
-pytest -k "test_zelle" -v
+```python
+import logging
 
-# Test balance extraction
-python test_balance_extraction.py
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
-# Test bank detection
-python test_bank_detection.py
+@app.post("/analyze")
+async def analyze_statement(...):
+    logger.info(f"Analyzing statement: {file.filename}")
+    # ...
+    logger.debug(f"Score result: {score_result.total_score}")
 ```
 
 ---
 
-## Immediate Productivity Checklist
+## Quick Reference
 
-**First task in this codebase?**
-1. Run `pytest` to verify environment
-2. Read `README.md` Quick Start section (method chaining example)
-3. Review `models/scoring.py` to understand `ScoringResult` fields
-4. Run `examples/complete_scoring.py` to see full workflow
-5. Check `IMPLEMENTATION_SUMMARY.md` for latest enhancements (P2P flagging, balance extraction, multi-bank support)
+### API Endpoints
+- `GET /health` - Health check
+- `POST /analyze` - Analyze bank statement (main endpoint)
+- `GET /` - API info
 
-**Modifying an existing component?**
-1. Identify which layer: Parsing / Analytics / Scoring
-2. Check affected models in `models/`
-3. Review existing tests in `tests/`
-4. Add tests **before** implementation
-5. Run full test suite to catch integration breaks
+### Running Commands
+```bash
+python api.py                   # Start FastAPI server
+python cli.py score --help      # CLI help
+pytest                          # Run tests
+pytest --cov=.                  # With coverage
+```
+
+### Dependencies
+```bash
+pip install -r requirements.txt  # Install all toolkits + FastAPI + DB drivers
+```
 
 ---
 
-## Environment Setup (Windows)
+## Version
 
-```bash
-# 1. Navigate to project
-cd C:\Dev\Trusted\MCA-Risk-Model
+**v2.0** - Imperative Shell with FastAPI (January 2026)
 
-# 2. Create and activate venv (optional but recommended)
-python -m venv venv
-.\venv\Scripts\Activate.ps1
+**Author**: IntensiveCapFi / Silv MT Holdings
 
-# 3. Install dependencies
-pip install -r requirements.txt
-
-# 4. Verify setup
-pytest --co -q  # Show test collection without running
-```
-
+**Architecture**: Functional Core (6 toolkits) + Imperative Shell (This repo)

@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh --version:*)",
+      "Bash(python -m pytest --version)",
+      "Bash(python:*)",
+      "Bash(done)",
+      "Bash(for toolkit in bankstatement-parser-toolkit transaction-classifier-toolkit cashflow-analytics-toolkit rbf-position-tracker-toolkit rbf-scoring-toolkit rbf-pricing-toolkit)",
+      "Bash(do mkdir -p \"$toolkit/.github\")"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
