@@ -1,4 +1,4 @@
-# MCA Risk Model Toolkit Dependencies
+# RBF Risk Model Toolkit Dependencies
 # All 6 modular toolkits (Functional Core)
 
 # Parser toolkit
@@ -11,13 +11,13 @@ git+https://github.com/silv-mt-holdings/transaction-classifier-toolkit.git
 git+https://github.com/silv-mt-holdings/cashflow-analytics-toolkit.git
 
 # Position tracker toolkit
-git+https://github.com/silv-mt-holdings/mca-position-tracker-toolkit.git
+git+https://github.com/silv-mt-holdings/rbf-position-tracker-toolkit.git
 
 # Scoring toolkit
-git+https://github.com/silv-mt-holdings/mca-scoring-toolkit.git
+git+https://github.com/silv-mt-holdings/rbf-scoring-toolkit.git
 
 # Pricing toolkit
-git+https://github.com/silv-mt-holdings/mca-pricing-toolkit.git
+git+https://github.com/silv-mt-holdings/rbf-pricing-toolkit.git
 
 # Database (MSSQL - stays in Risk-Model-01)
 pyodbc>=4.0.0

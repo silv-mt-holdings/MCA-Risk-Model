@@ -1,6 +1,6 @@
 # Risk-Model-01 Architecture
 
-> **Modular MCA Underwriting System** - Functional Core (Toolkits) + Imperative Shell (Product)
+> **Modular RBF Underwriting System** - Functional Core (Toolkits) + Imperative Shell (Product)
 
 ## Design Pattern: Functional Core, Imperative Shell
 
@@ -21,9 +21,9 @@ This architecture separates **pure business logic** (toolkits) from **applicatio
 │  │  │  - bankstatement-parser-toolkit             │  │  │
 │  │  │  - transaction-classifier-toolkit           │  │  │
 │  │  │  - cashflow-analytics-toolkit               │  │  │
-│  │  │  - mca-position-tracker-toolkit             │  │  │
-│  │  │  - mca-scoring-toolkit                      │  │  │
-│  │  │  - mca-pricing-toolkit                      │  │  │
+│  │  │  - rbf-position-tracker-toolkit             │  │  │
+│  │  │  - rbf-scoring-toolkit                      │  │  │
+│  │  │  - rbf-pricing-toolkit                      │  │  │
 │  │  └─────────────────────────────────────────────┘  │  │
 │  └───────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────┘
@@ -59,7 +59,7 @@ result = parser.parse(pdf_bytes, filename="statement.pdf")
 
 ### 2. [transaction-classifier-toolkit](https://github.com/silv-mt-holdings/transaction-classifier-toolkit)
 **Input**: `List[Transaction]`
-**Output**: `List[ClassifiedTransaction]` (revenue type, MCA detection)
+**Output**: `List[ClassifiedTransaction]` (revenue type, RBF detection)
 **No database**
 
 **Depends on**: bankstatement-parser-toolkit (for Transaction model)
@@ -75,36 +75,36 @@ result = parser.parse(pdf_bytes, filename="statement.pdf")
 
 ---
 
-### 4. [mca-position-tracker-toolkit](https://github.com/silv-mt-holdings/mca-position-tracker-toolkit)
+### 4. [rbf-position-tracker-toolkit](https://github.com/silv-mt-holdings/rbf-position-tracker-toolkit)
 **Input**: `List[ClassifiedTransaction]`
-**Output**: `StackingAnalysis` (MCA positions, stacking risk)
+**Output**: `StackingAnalysis` (RBF positions, stacking risk)
 **No database**
 
 **Depends on**: transaction-classifier-toolkit
 
 ---
 
-### 5. [mca-scoring-toolkit](https://github.com/silv-mt-holdings/mca-scoring-toolkit)
+### 5. [rbf-scoring-toolkit](https://github.com/silv-mt-holdings/rbf-scoring-toolkit)
 **Input**: `CashFlowSummary`, `StackingAnalysis`, FICO, industry
 **Output**: `ScoringResult` (100-pt score, letter grade)
 **No database**
 
-**Depends on**: cashflow-analytics-toolkit, mca-position-tracker-toolkit
+**Depends on**: cashflow-analytics-toolkit, rbf-position-tracker-toolkit
 
 ---
 
-### 6. [mca-pricing-toolkit](https://github.com/silv-mt-holdings/mca-pricing-toolkit)
+### 6. [rbf-pricing-toolkit](https://github.com/silv-mt-holdings/rbf-pricing-toolkit)
 **Input**: `ScoringResult`, monthly revenue
 **Output**: `PricingRecommendation` (factor rate, advance, terms)
 **No database**
 
-**Depends on**: mca-scoring-toolkit
+**Depends on**: rbf-scoring-toolkit
 
 ---
 
 ## Imperative Shell: Risk-Model-01 (This Repo)
 
-**Purpose**: Production MCA underwriting platform with state management
+**Purpose**: Production RBF underwriting platform with state management
 
 ### What Lives Here
 
@@ -163,12 +163,12 @@ Risk-Model-01/
    → ClassifiedTransactions
    ↓
 4a. cashflow-analytics-toolkit → CashFlowSummary
-4b. mca-position-tracker-toolkit → StackingAnalysis
+4b. rbf-position-tracker-toolkit → StackingAnalysis
    ↓
-5. mca-scoring-toolkit
+5. rbf-scoring-toolkit
    → ScoringResult
    ↓
-6. mca-pricing-toolkit
+6. rbf-pricing-toolkit
    → PricingRecommendation
    ↓
 7. Risk-Model-01 Orchestrator
@@ -189,7 +189,7 @@ from parser.statement_parser import BankStatementParser
 from classifier.revenue_classifier import TransactionClassifier
 from analytics.cashflow_analyzer import CashFlowAnalyzer
 from tracker.position_analyzer import PositionTracker
-from scoring.mca_scorecard import MCAScoringModel
+from scoring.rbf_scorecard import RBFScoringModel
 from pricing.factor_calculator import PricingCalculator
 from integrations.mssql import save_application, get_db_connection
 
@@ -209,7 +209,7 @@ tracker = PositionTracker()
 positions = tracker.find_positions(classified)
 
 # 4. Score (Functional Core)
-scorer = MCAScoringModel()
+scorer = RBFScoringModel()
 score_result = scorer.score(
     cash_flow=cash_flow,
     positions=positions,

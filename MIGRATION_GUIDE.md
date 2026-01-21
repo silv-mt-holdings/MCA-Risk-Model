@@ -1,6 +1,6 @@
-# Migration Guide: MCA-Risk-Model → New Toolkit Architecture
+# Migration Guide: Legacy Risk Model → New Toolkit Architecture
 
-This guide explains how to migrate from the monolithic `MCA-Risk-Model` to the new modular toolkit architecture.
+This guide explains how to migrate from the monolithic legacy risk model to the new modular toolkit architecture.
 
 ## Overview
 
@@ -37,9 +37,9 @@ MCA-Risk-Model/
 bankstatement-parser-toolkit/     ← Parsing only
 transaction-classifier-toolkit/    ← Classification only
 cashflow-analytics-toolkit/        ← Analytics only
-mca-position-tracker-toolkit/      ← MCA detection only
-mca-scoring-toolkit/               ← Scoring only
-mca-pricing-toolkit/               ← Pricing only
+rbf-position-tracker-toolkit/      ← RBF detection only
+rbf-scoring-toolkit/               ← Scoring only
+rbf-pricing-toolkit/               ← Pricing only
 Risk-Model-01/                     ← Orchestration + MSSQL + CLI
 ```
 
@@ -50,9 +50,9 @@ Risk-Model-01/                     ← Orchestration + MSSQL + CLI
 | **Parser** | ✅ Complete | [bankstatement-parser-toolkit](https://github.com/silv-mt-holdings/bankstatement-parser-toolkit) | Pushed to GitHub |
 | **Classifier** | ✅ Complete | [transaction-classifier-toolkit](https://github.com/silv-mt-holdings/transaction-classifier-toolkit) | Pushed to GitHub |
 | **Analytics** | ⏳ Pending | [cashflow-analytics-toolkit](https://github.com/silv-mt-holdings/cashflow-analytics-toolkit) | Repo created |
-| **Tracker** | ⏳ Pending | [mca-position-tracker-toolkit](https://github.com/silv-mt-holdings/mca-position-tracker-toolkit) | Repo created |
-| **Scoring** | ⏳ Pending | [mca-scoring-toolkit](https://github.com/silv-mt-holdings/mca-scoring-toolkit) | Repo created |
-| **Pricing** | ⏳ Pending | [mca-pricing-toolkit](https://github.com/silv-mt-holdings/mca-pricing-toolkit) | Repo created |
+| **Tracker** | ✅ Complete | [rbf-position-tracker-toolkit](https://github.com/silv-mt-holdings/rbf-position-tracker-toolkit) | Pushed to GitHub |
+| **Scoring** | ✅ Complete | [rbf-scoring-toolkit](https://github.com/silv-mt-holdings/rbf-scoring-toolkit) | Pushed to GitHub |
+| **Pricing** | ✅ Complete | [rbf-pricing-toolkit](https://github.com/silv-mt-holdings/rbf-pricing-toolkit) | Pushed to GitHub |
 
 ## Step-by-Step Migration
 
@@ -76,15 +76,15 @@ From `MCA-Risk-Model/analytics/cashflow_analyzer.py` extract:
 - NSF/overdraft detection
 - Red flag generation
 
-**2b. Extract mca-position-tracker-toolkit**
+**2b. Extract rbf-position-tracker-toolkit**
 
 Create new logic for:
-- MCA payment frequency detection
+- RBF payment frequency detection
 - Payment pattern analysis
 - Stacking risk calculation
 - Estimated balance calculation
 
-**2c. Extract mca-scoring-toolkit**
+**2c. Extract rbf-scoring-toolkit**
 
 From `MCA-Risk-Model/scoring/` extract:
 - `mca_scorecard.py` → 100-point composite scoring
@@ -95,7 +95,7 @@ From `MCA-Risk-Model/scoring/` extract:
 - `data/letter_grade_thresholds.json`
 - `data/industry_risk_db.json`
 
-**2d. Extract mca-pricing-toolkit**
+**2d. Extract rbf-pricing-toolkit**
 
 From `MCA-Risk-Model/scoring/` extract:
 - Factor rate calculation logic
@@ -113,9 +113,9 @@ From `MCA-Risk-Model/scoring/` extract:
 git+https://github.com/silv-mt-holdings/bankstatement-parser-toolkit.git
 git+https://github.com/silv-mt-holdings/transaction-classifier-toolkit.git
 git+https://github.com/silv-mt-holdings/cashflow-analytics-toolkit.git
-git+https://github.com/silv-mt-holdings/mca-position-tracker-toolkit.git
-git+https://github.com/silv-mt-holdings/mca-scoring-toolkit.git
-git+https://github.com/silv-mt-holdings/mca-pricing-toolkit.git
+git+https://github.com/silv-mt-holdings/rbf-position-tracker-toolkit.git
+git+https://github.com/silv-mt-holdings/rbf-scoring-toolkit.git
+git+https://github.com/silv-mt-holdings/rbf-pricing-toolkit.git
 
 # Database
 pyodbc>=4.0.0
@@ -142,13 +142,13 @@ from parser.statement_parser import BankStatementParser
 from classifier.revenue_classifier import RevenueClassifier
 from analytics.cashflow_analyzer import CashFlowAnalyzer
 from tracker.position_analyzer import PositionTracker
-from scoring.mca_scorecard import MCAScoringModel
+from scoring.rbf_scorecard import RBFScoringModel
 from pricing.factor_calculator import PricingCalculator
 from integrations.mssql import save_application, get_db_connection
 
 class UnderwritingPipeline:
     """
-    End-to-end MCA underwriting pipeline.
+    End-to-end RBF underwriting pipeline.
     """
 
     def __init__(self):
@@ -156,7 +156,7 @@ class UnderwritingPipeline:
         self.classifier = RevenueClassifier()
         self.analytics = CashFlowAnalyzer()
         self.tracker = PositionTracker()
-        self.scorer = MCAScoringModel()
+        self.scorer = RBFScoringModel()
         self.pricer = PricingCalculator()
 
     def process(self, pdf_bytes, fico, industry, business_name):
@@ -181,7 +181,7 @@ class UnderwritingPipeline:
         # 3. Analyze cash flow
         cash_flow = self.analytics.analyze(classified)
 
-        # 4. Track MCA positions
+        # 4. Track RBF positions
         positions = self.tracker.find_positions(classified)
 
         # 5. Score the deal
@@ -224,7 +224,7 @@ class UnderwritingPipeline:
 """
 Risk-Model-01 CLI
 
-Command-line interface for MCA underwriting.
+Command-line interface for RBF underwriting.
 """
 
 import click
@@ -233,7 +233,7 @@ from orchestrator.pipeline import UnderwritingPipeline
 
 @click.group()
 def cli():
-    """MCA Risk Model CLI"""
+    """RBF Risk Model CLI"""
     pass
 
 @cli.command()
@@ -242,7 +242,7 @@ def cli():
 @click.option('--industry', required=True, help='Industry name')
 @click.option('--business-name', required=True, help='Business name')
 def score(pdf_file, fico, industry, business_name):
-    """Score an MCA application from bank statement"""
+    """Score an RBF application from bank statement"""
 
     # Read PDF
     with open(pdf_file, 'rb') as f:
@@ -339,13 +339,13 @@ python cli.py score statement.pdf --fico 680 --industry restaurant --business-na
 | `data/mca_lender_list.json` | `data/mca_lender_list.json` | transaction-classifier-toolkit |
 | `data/revenue_patterns.json` | `data/revenue_patterns.json` | transaction-classifier-toolkit |
 | `analytics/cashflow_analyzer.py` | `analytics/cashflow_analyzer.py` | cashflow-analytics-toolkit |
-| `analytics/` (MCA detection) | `tracker/position_analyzer.py` | mca-position-tracker-toolkit |
-| `scoring/mca_scorecard.py` | `scoring/mca_scorecard.py` | mca-scoring-toolkit |
-| `scoring/letter_grader.py` | `scoring/letter_grader.py` | mca-scoring-toolkit |
-| `scoring/industry_scorer.py` | `scoring/industry_scorer.py` | mca-scoring-toolkit |
-| `scoring/` (pricing logic) | `pricing/factor_calculator.py` | mca-pricing-toolkit |
-| `data/scoring_weights.json` | `data/scoring_weights.json` | mca-scoring-toolkit |
-| `data/deal_tier_thresholds.json` | `data/deal_tier_thresholds.json` | mca-pricing-toolkit |
+| `analytics/` (RBF detection) | `tracker/position_analyzer.py` | rbf-position-tracker-toolkit |
+| `scoring/rbf_scorecard.py` | `scoring/rbf_scorecard.py` | rbf-scoring-toolkit |
+| `scoring/letter_grader.py` | `scoring/letter_grader.py` | rbf-scoring-toolkit |
+| `scoring/industry_scorer.py` | `scoring/industry_scorer.py` | rbf-scoring-toolkit |
+| `scoring/` (pricing logic) | `pricing/factor_calculator.py` | rbf-pricing-toolkit |
+| `data/scoring_weights.json` | `data/scoring_weights.json` | rbf-scoring-toolkit |
+| `data/deal_tier_thresholds.json` | `data/deal_tier_thresholds.json` | rbf-pricing-toolkit |
 
 ## Benefits of New Architecture
 
