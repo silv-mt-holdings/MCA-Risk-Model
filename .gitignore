@@ -73,3 +73,6 @@ Thumbs.db
 *.key
 credentials.json
 config.local.json
+
+# Claude Code local settings
+.claude/settings.local.json
